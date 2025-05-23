@@ -17,7 +17,6 @@
       box-shadow:0 4px 6px -1px rgba(0,0,0,0.1),
                  0 2px 4px -1px rgba(0,0,0,0.06);
     }
-    /* rule colors */
     .bg-rule1 { background:#facc15; color:#000 }  /* >14h */
     .bg-rule2 { background:#f97316; color:#fff }  /* 2–8h gap */
     .bg-rule3 { background:#ef4444; color:#fff }  /* >92h/7d */
@@ -45,18 +44,12 @@
     ::-webkit-scrollbar-thumb:hover { background:#555; }
     #timelineHoursContainer, .day-row-content { display:flex; width:100%; }
 
-    /* Tooltip style */
+    /* Tooltip */
     #tooltip {
-      position: absolute;
-      background: rgba(0,0,0,0.75);
-      color: #fff;
-      padding: 0.25rem 0.5rem;
-      font-size: 0.75rem;
-      border-radius: 0.25rem;
-      pointer-events: none;
-      z-index: 10000;
-      white-space: nowrap;
-      display: none;
+      position:absolute; background:rgba(0,0,0,0.75);
+      color:#fff; padding:0.25rem 0.5rem; font-size:0.75rem;
+      border-radius:0.25rem; pointer-events:none; display:none;
+      z-index:10000; white-space:nowrap;
     }
   </style>
 </head>
@@ -80,6 +73,14 @@
     <!-- Total hours -->
     <div id="totalDuration" class="mb-4 text-sm font-medium text-gray-700"></div>
 
+    <!-- Profile Management -->
+    <div class="mb-4 flex items-center space-x-2">
+      <label for="profileSelect" class="font-medium">Profile:</label>
+      <select id="profileSelect" class="border p-1 rounded"></select>
+      <button id="saveProfileBtn" class="px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600">Save</button>
+      <button id="deleteProfileBtn" class="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600">Delete</button>
+    </div>
+
     <!-- Controls -->
     <div class="mb-4 flex justify-between items-center">
       <div class="space-x-2">
@@ -87,15 +88,15 @@
         <button id="addShiftBtn" class="px-4 py-2 bg-sky-600 text-white rounded hover:bg-sky-700">+ Add Shift</button>
       </div>
       <div class="space-x-2">
-        <button id="importBtn"      class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">Import</button>
-        <input  id="importInput"    type="file" accept=".csv" style="display:none"/>
-        <button id="exportBtn"      class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Export</button>
-        <button id="printBtn"       class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">Print</button>
-        <button id="removeAllBtn"   class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Remove All</button>
+        <button id="importBtn"    class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">Import</button>
+        <input  id="importInput"  type="file" accept=".csv" style="display:none"/>
+        <button id="exportBtn"    class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Export</button>
+        <button id="printBtn"     class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">Print</button>
+        <button id="removeAllBtn" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Remove All</button>
       </div>
     </div>
 
-    <!-- Gantt Chart -->
+    <!-- Gantt -->
     <div id="ganttScrollContainer" class="shadow rounded-lg bg-white overflow-x-hidden">
       <div id="timelineHeader" class="flex bg-gray-50 border-b border-gray-300 sticky top-0 z-20">
         <div id="headerDateColumn"
@@ -138,7 +139,7 @@
     </div>
   </div>
 
-  <!-- Tooltip element -->
+  <!-- Tooltip -->
   <div id="tooltip"></div>
 
   <script>
@@ -165,7 +166,7 @@
 
     let shifts = [];
 
-    // cached DOM refs
+    // DOM refs
     let headerDateColumnEl, timelineHoursContainerEl, chartAreaEl;
     let addDateBtn, addShiftBtn, importBtn, importInput, exportBtn, printBtn, removeAllBtn;
     let modalEl, shiftFormEl, shiftNameInput, shiftDurationInput, shiftStartInput, shiftDateInput;
@@ -193,7 +194,6 @@
         s.isRule1 = s.duration>14;
         s.isRule2 = s.isRule3 = s.isRule4 = s.isRule5 = s.isRule6 = s.isRule7 = s.isRule8 = false;
       });
-
       // Rule 2
       const seq = shifts.map(s=>{
         const idx=dateIndexMap.get(s.date),
@@ -208,52 +208,54 @@
           if(gap>=2&&gap<=8) shifts.find(x=>x.id===c.id).isRule2 = true;
         }
       }
-
-      // Rule 3–8
+      // Rules 3–8
       shifts.forEach(s=>{
-        const sd=new Date(s.date);
-        // 3: 7-day >92h
-        let ws=new Date(sd); ws.setDate(ws.getDate()-6);
-        let tot7=shifts.reduce((sum,t)=>{
+        const sd=new Date(s.date), daysWith=new Set(shifts.map(x=>x.date));
+        let ws, tot;
+        // 3: 7d>92h
+        ws=new Date(sd); ws.setDate(ws.getDate()-6);
+        tot=shifts.reduce((sum,t)=>{
           const td=new Date(t.date);
           return td>=ws&&td<=sd? sum+t.duration : sum;
-        },0); s.isRule3=tot7>92;
-        // 4: 14-day >164h
+        }, 0);
+        s.isRule3 = tot>92;
+        // 4: 14d>164h
         ws=new Date(sd); ws.setDate(ws.getDate()-13);
-        let tot14=shifts.reduce((sum,t)=>{
+        tot=shifts.reduce((sum,t)=>{
           const td=new Date(t.date);
           return td>=ws&&td<=sd? sum+t.duration : sum;
-        },0); s.isRule4=tot14>164;
+        }, 0);
+        s.isRule4 = tot>164;
         // 5: 13 consec prior
-        const daysWith=new Set(shifts.map(x=>x.date));
         let ok=true;
         for(let k=1;k<=13;k++){
           const d=new Date(sd); d.setDate(d.getDate()-k);
           if(!daysWith.has(d.toISOString().split('T')[0])){ ok=false; break; }
         }
-        s.isRule5=ok;
-        // 6: 28-day >320h
+        s.isRule5 = ok;
+        // 6: 28d>320h
         ws=new Date(sd); ws.setDate(ws.getDate()-27);
-        let tot28=shifts.reduce((sum,t)=>{
+        tot=shifts.reduce((sum,t)=>{
           const td=new Date(t.date);
-          return td>=ws&&td<=sd? sum+t.duration: sum;
-        },0); s.isRule6=tot28>320;
-        // 7: 29-day >26 distinct
+          return td>=ws&&td<=sd? sum+t.duration : sum;
+        }, 0);
+        s.isRule6 = tot>320;
+        // 7: 29d>26 days
         ws=new Date(sd); ws.setDate(ws.getDate()-28);
         const days7=shifts.reduce((set,t)=>{
           const td=new Date(t.date);
           if(td>=ws&&td<=sd) set.add(t.date);
           return set;
         }, new Set());
-        s.isRule7=days7.size>26;
-        // 8: 58-day >52 distinct
+        s.isRule7 = days7.size>26;
+        // 8: 58d>52 days
         ws=new Date(sd); ws.setDate(ws.getDate()-57);
         const days8=shifts.reduce((set,t)=>{
           const td=new Date(t.date);
           if(td>=ws&&td<=sd) set.add(t.date);
           return set;
         }, new Set());
-        s.isRule8=days8.size>52;
+        s.isRule8 = days8.size>52;
       });
 
       // total
@@ -307,8 +309,7 @@
             const d=new Date(y,m-1,dd); d.setDate(d.getDate()+1);
             const nxt=d.toISOString().split('T')[0];
             if(!DATES.includes(nxt)){
-              DATES.push(nxt);
-              DATES.sort();
+              DATES.push(nxt); DATES.sort();
               rebuildDateIndexMap();
               renderTimelineHeader();
               renderChartArea();
@@ -339,8 +340,7 @@
       document.querySelectorAll('.shift-bar').forEach(x=>x.remove());
       shifts.forEach(s=>{
         let idx=dateIndexMap.get(s.date), rem=s.duration, st=s.startTime;
-        // build violation list
-        const rules=[]
+        const rules=[];
         if(s.isRule1) rules.push('Rule 1 Violation');
         if(s.isRule2) rules.push('Rule 2 Violation');
         if(s.isRule3) rules.push('Rule 3 Violation');
@@ -356,9 +356,9 @@
           if(!cont) break;
           const durToday=Math.min(rem, HOURS_IN_DAY-st);
           if(durToday<=0) break;
+
           const seg=document.createElement('div');
           seg.className='shift-bar';
-          // color by rules
           const cnt=rules.length;
           if(cnt===0) seg.classList.add('bg-sky-500');
           else if(cnt===1){
@@ -393,12 +393,11 @@
             <span class="trash">🗑️</span>
           `;
 
-          // tooltip on hover
+          // tooltip
           seg.addEventListener('mouseenter', () => {
             tooltipEl.textContent = rules.length ? rules.join(', ') : 'OK Shift';
             tooltipEl.style.display = 'block';
-            const r = seg.getBoundingClientRect();
-            const t = tooltipEl.getBoundingClientRect();
+            const r = seg.getBoundingClientRect(), t = tooltipEl.getBoundingClientRect();
             tooltipEl.style.left = window.pageXOffset + r.left + (r.width - t.width)/2 + 'px';
             tooltipEl.style.top  = window.pageYOffset + r.top - t.height - 6 + 'px';
           });
@@ -413,7 +412,7 @@
           });
           seg.querySelector('.trash').addEventListener('click', ev=>{
             ev.stopPropagation();
-            if (confirm('Delete this shift?')) {
+            if(confirm('Delete this shift?')){
               shifts = shifts.filter(x=>x.id!==s.id);
               applyViolations(); renderShifts();
             }
@@ -427,7 +426,7 @@
       });
     }
 
-    // Drag & drop
+    // drag & drop
     let isDragging=false, initialX=0, initialAbs=0, draggedData=null;
     function handleMouseDown(e){
       if(e.button!==0) return;
@@ -466,7 +465,7 @@
       document.removeEventListener('mouseup',   handleMouseUp);
     }
 
-    // Modal
+    // modal
     function openShiftModal(shift,isNew){
       modalEl.classList.remove('hidden');
       shiftNameInput.value     = shift.name     || '';
@@ -487,7 +486,7 @@
       });
     }
 
-    // Export
+    // export
     function exportToCSV(){
       const hdr=['ID','Name','Date','Start','Duration','R1','R2','R3','R4','R5','R6','R7','R8'],
             lines=[hdr.join(',')];
@@ -508,7 +507,7 @@
       a.href=url; a.download='shifts.csv'; a.click(); URL.revokeObjectURL(url);
     }
 
-    // Import (full date range)
+    // import (full range)
     function handleImport(e){
       const file=e.target.files[0];
       if(!file) return;
@@ -531,7 +530,8 @@
         if(shifts.length){
           const ds=shifts.map(s=>new Date(s.date)).sort((a,b)=>a-b);
           let cur=new Date(ds[0]), end=new Date(ds[ds.length-1]);
-          DATES=[]; while(cur<=end){
+          DATES=[];
+          while(cur<=end){
             DATES.push(cur.toISOString().split('T')[0]);
             cur.setDate(cur.getDate()+1);
           }
@@ -541,9 +541,54 @@
         renderTimelineHeader();
         renderChartArea();
         populateDateOptions();
+        listProfiles();
       };
       reader.readAsText(file);
       e.target.value=null;
+    }
+
+    // PROFILE MANAGEMENT
+    function listProfiles(){
+      const sel=document.getElementById('profileSelect');
+      sel.innerHTML='<option value="">(none)</option>';
+      Object.keys(localStorage)
+        .filter(k=>k.startsWith('shiftsProfile:'))
+        .map(k=>k.replace('shiftsProfile:',''))
+        .sort()
+        .forEach(name=>{
+          const o=document.createElement('option');
+          o.value=o.text=name;
+          sel.appendChild(o);
+        });
+    }
+    function saveProfile(){
+      const name=prompt('Enter profile name:');
+      if(!name) return;
+      const key='shiftsProfile:'+name;
+      localStorage.setItem(key,JSON.stringify({dates:DATES,shifts}));
+      listProfiles();
+      alert(`Saved profile "${name}".`);
+    }
+    function loadProfile(){
+      const sel=document.getElementById('profileSelect');
+      const name=sel.value; if(!name) return;
+      const payload=JSON.parse(localStorage.getItem('shiftsProfile:'+name));
+      DATES=payload.dates;
+      shifts=payload.shifts;
+      rebuildDateIndexMap();
+      applyViolations();
+      renderTimelineHeader();
+      renderChartArea();
+      populateDateOptions();
+    }
+    function deleteProfile(){
+      const sel=document.getElementById('profileSelect');
+      const name=sel.value; if(!name) return;
+      if(confirm(`Delete profile "${name}"?`)){
+        localStorage.removeItem('shiftsProfile:'+name);
+        listProfiles();
+        sel.value='';
+      }
     }
 
     function init(){
@@ -569,6 +614,7 @@
       tooltipEl                = document.getElementById('tooltip');
 
       populateDateOptions();
+      listProfiles();
 
       addDateBtn.addEventListener('click',()=>{
         const d=prompt('Enter new date (YYYY-MM-DD):');
@@ -621,6 +667,10 @@
           applyViolations(); renderShifts(); closeShiftModal();
         }
       });
+
+      document.getElementById('saveProfileBtn').addEventListener('click', saveProfile);
+      document.getElementById('deleteProfileBtn').addEventListener('click', deleteProfile);
+      document.getElementById('profileSelect').addEventListener('change', loadProfile);
 
       renderTimelineHeader();
       renderChartArea();
