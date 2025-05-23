@@ -234,7 +234,7 @@
         const p=seq[i-1], c=seq[i];
         if(p.duration>=4){
           const gap=c.abs-p.end;
-          if(gap>=2&&gap<=8) shifts.find(x=>x.id===c.id).isRule2=true;
+          if(gap>=2&&gap<8) shifts.find(x=>x.id===c.id).isRule2=true;
         }
       }
       // Rules 3–8
