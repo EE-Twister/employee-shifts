@@ -60,7 +60,7 @@
     <!-- ——— OPTIMIZED SCHEDULE PANEL ——— -->
     <div class="mb-6 p-4 bg-gray-50 rounded shadow">
       <h2 class="font-semibold mb-2">Generate an Optimal Schedule</h2>
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
         <div>
           <label class="block text-xs font-medium">Shift Hours (≤14)</label>
           <input id="optShiftHours" type="number" min="1" max="14" step="0.25"
@@ -75,6 +75,18 @@
           <label class="block text-xs font-medium">End Date</label>
           <input id="optEndDate" type="date"
                  class="w-full border p-2 rounded" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium">Holidays</label>
+          <div class="flex space-x-2">
+            <input id="holidayInput" type="date"
+                   class="border p-2 rounded flex-1"/>
+            <button id="addHolidayBtn"
+                    class="px-3 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">
+              Add
+            </button>
+          </div>
+          <ul id="holidayList" class="mt-1 text-xs text-gray-700"></ul>
         </div>
         <div>
           <button id="genScheduleBtn"
@@ -193,12 +205,13 @@
     rebuildDateIndexMap();
 
     let shifts = [];
+    let holidays = [];
 
     // cached DOM
     let headerDateColumnEl, timelineHoursContainerEl, chartAreaEl;
     let addDateBtn, addShiftBtn, importBtn, importInput, exportBtn, printBtn, removeAllBtn;
     let modalEl, shiftFormEl, shiftNameInput, shiftDurationInput, shiftStartInput, shiftDateInput;
-    let cancelModalBtn, deleteShiftBtn, modalTitle, modalActiveShiftId=null;
+    let cancelModalBtn, deleteShiftBtn, modalTitle, modalActiveShiftId = null;
     let tooltipEl;
 
     function formatTime(h){
@@ -217,14 +230,34 @@
       return 's'+(max+1);
     }
 
+    function renderHolidayList(){
+      const ul = document.getElementById('holidayList');
+      ul.innerHTML = '';
+      holidays.forEach((d,i) => {
+        const li = document.createElement('li');
+        li.className = 'flex justify-between';
+        const span = document.createElement('span');
+        span.textContent = d;
+        const x = document.createElement('span');
+        x.textContent = '×';
+        x.className = 'cursor-pointer text-red-500 ml-2';
+        x.addEventListener('click', () => {
+          holidays.splice(i,1);
+          renderHolidayList();
+        });
+        li.appendChild(span);
+        li.appendChild(x);
+        ul.appendChild(li);
+      });
+    }
+
     function applyViolations(){
-      // reset
       shifts.forEach(s=>{
-        s.isRule1=s.duration>14;
-        s.isRule2=s.isRule3=s.isRule4=s.isRule5=s.isRule6=s.isRule7=s.isRule8=false;
+        s.isRule1 = s.duration>14;
+        s.isRule2 = s.isRule3 = s.isRule4 = s.isRule5 = s.isRule6 = s.isRule7 = s.isRule8 = false;
       });
       // Rule 2
-      const seq=shifts.map(s=>{
+      const seq = shifts.map(s=>{
         const idx=dateIndexMap.get(s.date),
               abs=idx*HOURS_IN_DAY+s.startTime,
               end=abs+s.duration;
@@ -234,57 +267,57 @@
         const p=seq[i-1], c=seq[i];
         if(p.duration>=4){
           const gap=c.abs-p.end;
-          if(gap>=2&&gap<8) shifts.find(x=>x.id===c.id).isRule2=true;
+          if(gap>=2&&gap<=8) shifts.find(x=>x.id===c.id).isRule2 = true;
         }
       }
       // Rules 3–8
       shifts.forEach(s=>{
         const sd=new Date(s.date), daysWith=new Set(shifts.map(x=>x.date));
         let ws, tot;
-        // 3: 7d>92h
+        // 3
         ws=new Date(sd); ws.setDate(ws.getDate()-6);
         tot=shifts.reduce((sum,t)=>{
           const td=new Date(t.date);
-          return td>=ws&&td<=sd? sum+t.duration: sum;
-        },0);
-        s.isRule3=tot>92;
-        // 4: 14d>164h
+          return td>=ws&&td<=sd? sum+t.duration : sum;
+        }, 0);
+        s.isRule3 = tot>92;
+        // 4
         ws=new Date(sd); ws.setDate(ws.getDate()-13);
         tot=shifts.reduce((sum,t)=>{
           const td=new Date(t.date);
-          return td>=ws&&td<=sd? sum+t.duration: sum;
-        },0);
-        s.isRule4=tot>164;
-        // 5: 13 consec prior
+          return td>=ws&&td<=sd? sum+t.duration : sum;
+        }, 0);
+        s.isRule4 = tot>164;
+        // 5
         let ok=true;
         for(let k=1;k<=13;k++){
           const d=new Date(sd); d.setDate(d.getDate()-k);
           if(!daysWith.has(d.toISOString().split('T')[0])){ ok=false; break; }
         }
-        s.isRule5=ok;
-        // 6: 28d>320h
+        s.isRule5 = ok;
+        // 6
         ws=new Date(sd); ws.setDate(ws.getDate()-27);
         tot=shifts.reduce((sum,t)=>{
           const td=new Date(t.date);
-          return td>=ws&&td<=sd? sum+t.duration: sum;
-        },0);
-        s.isRule6=tot>320;
-        // 7: 29d>26 days
+          return td>=ws&&td<=sd? sum+t.duration : sum;
+        }, 0);
+        s.isRule6 = tot>320;
+        // 7
         ws=new Date(sd); ws.setDate(ws.getDate()-28);
         const days7=shifts.reduce((set,t)=>{
           const td=new Date(t.date);
           if(td>=ws&&td<=sd) set.add(t.date);
           return set;
         }, new Set());
-        s.isRule7=days7.size>26;
-        // 8: 58d>52 days
+        s.isRule7 = days7.size>26;
+        // 8
         ws=new Date(sd); ws.setDate(ws.getDate()-57);
         const days8=shifts.reduce((set,t)=>{
           const td=new Date(t.date);
           if(td>=ws&&td<=sd) set.add(t.date);
           return set;
         }, new Set());
-        s.isRule8=days8.size>52;
+        s.isRule8 = days8.size>52;
       });
       // total
       const total=shifts.reduce((sum,s)=>sum+s.duration,0);
@@ -307,9 +340,13 @@
       DATES.forEach((dateStr,idx)=>{
         const row=document.createElement('div');
         row.className='flex border-b border-gray-200 last:border-b-0';
+
+        // DATE CELL
         const lbl=document.createElement('div');
         lbl.className='w-36 md:w-48 flex-shrink-0 border-r border-gray-300 p-3 text-sm text-gray-600 flex flex-col items-center justify-center bg-white sticky left-0 z-10 relative';
         lbl.innerHTML=`<span>${dateStr}</span><span class="font-semibold">${getDayOfWeek(dateStr)}</span>`;
+
+        // trash
         if(idx===0||idx===DATES.length-1){
           const x=document.createElement('span');
           x.textContent='🗑️'; x.title=`Remove ${dateStr}`;
@@ -326,6 +363,7 @@
           });
           lbl.appendChild(x);
         }
+        // next-day
         if(idx===DATES.length-1){
           const p=document.createElement('span');
           p.textContent='➕'; p.title='Add next day';
@@ -345,8 +383,27 @@
           });
           lbl.appendChild(p);
         }
+
+        // per-row "+ Add Shift"
+        const addShiftIcon=document.createElement('span');
+        addShiftIcon.textContent='➕';
+        addShiftIcon.title=`Add shift on ${dateStr}`;
+        addShiftIcon.className='absolute top-1 right-1 cursor-pointer text-blue-600';
+        addShiftIcon.addEventListener('click',e=>{
+          e.stopPropagation();
+          openShiftModal({
+            id:        null,
+            name:      '',
+            date:      dateStr,
+            startTime: 7,
+            duration:  1
+          }, true);
+        });
+        lbl.appendChild(addShiftIcon);
+
         row.appendChild(lbl);
 
+        // TIME GRID
         const content=document.createElement('div');
         content.id=`day-row-content-${dateStr}`;
         content.className='day-row-content';
@@ -357,8 +414,10 @@
           content.appendChild(g);
         }
         row.appendChild(content);
+
         chartAreaEl.appendChild(row);
       });
+
       applyViolations();
       renderShifts();
     }
@@ -420,12 +479,11 @@
             <span class="trash">🗑️</span>
           `;
 
-          // tooltip
           seg.addEventListener('mouseenter', () => {
             tooltipEl.textContent = rules.length ? rules.join(', ') : 'OK Shift';
             tooltipEl.style.display = 'block';
             const r=seg.getBoundingClientRect(), t=tooltipEl.getBoundingClientRect();
-            tooltipEl.style.left = window.pageXOffset + r.left + (r.width-t.width)/2 + 'px';
+            tooltipEl.style.left = window.pageXOffset + r.left + (r.width - t.width)/2 + 'px';
             tooltipEl.style.top  = window.pageYOffset + r.top - t.height - 6 + 'px';
           });
           seg.addEventListener('mouseleave', () => {
@@ -440,7 +498,7 @@
           seg.querySelector('.trash').addEventListener('click', ev=>{
             ev.stopPropagation();
             if(confirm('Delete this shift?')){
-              shifts=shifts.filter(x=>x.id!==s.id);
+              shifts = shifts.filter(x=>x.id!==s.id);
               applyViolations(); renderShifts();
             }
           });
@@ -451,7 +509,7 @@
       });
     }
 
-    // drag & drop 1:1
+    // drag & drop
     let isDragging=false, initialX=0, initialAbs=0, draggedData=null;
     function handleMouseDown(e){
       if(e.button!==0) return;
@@ -554,8 +612,7 @@
         if(shifts.length){
           const ds=shifts.map(s=>new Date(s.date)).sort((a,b)=>a-b);
           let cur=new Date(ds[0]), end=new Date(ds[ds.length-1]);
-          DATES=[];
-          while(cur<=end){
+          DATES=[]; while(cur<=end){
             DATES.push(cur.toISOString().split('T')[0]);
             cur.setDate(cur.getDate()+1);
           }
@@ -571,7 +628,7 @@
       e.target.value=null;
     }
 
-    // profile
+    // profiles
     function listProfiles(){
       const sel=document.getElementById('profileSelect');
       sel.innerHTML='<option value="">(none)</option>';
@@ -581,8 +638,7 @@
         .sort()
         .forEach(name=>{
           const o=document.createElement('option');
-          o.value=o.text=name;
-          sel.appendChild(o);
+          o.value=o.text=name; sel.appendChild(o);
         });
     }
     function saveProfile(){
@@ -611,63 +667,61 @@
       }
     }
 
-      // ——— OPTIMIZED SCHEDULE GENERATOR (skips days to stay compliant) ———
+    // optimized schedule generator (skips holidays & stays compliant)
       function generateOptimal(){
-        const H     = parseFloat(document.getElementById('optShiftHours').value),
-              start = document.getElementById('optStartDate').value,
-              end   = document.getElementById('optEndDate').value;
-        if (isNaN(H) || H <= 0 || H > 14)
-          return alert('Enter shift length 1–14.');
-        if (!start || !end || new Date(start) > new Date(end))
-          return alert('Invalid date range.');
+      const H     = parseFloat(document.getElementById('optShiftHours').value),
+            start = document.getElementById('optStartDate').value,
+            end   = document.getElementById('optEndDate').value;
+      if (isNaN(H) || H <= 0 || H > 14)
+        return alert('Enter shift length 1–14.');
+      if (!start || !end || new Date(start) > new Date(end))
+        return alert('Invalid date range.');
 
-        // 1) build full date array
-        const allDates = [];
-        for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate()+1)) {
-          allDates.push(d.toISOString().split('T')[0]);
-        }
+      // 1) build full date array
+      const allDates = [];
+      for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate()+1)) {
+        allDates.push(d.toISOString().split('T')[0]);
+      }
 
-        // 2) try to add a shift on each date, but only if it stays rule-compliant
-        const oldDates  = DATES.slice(),
-              oldShifts = shifts.slice();
-        DATES  = allDates;
-        let candidateShifts = [];
+      // 1b) determine which of those are usable (i.e. not holidays)
+      const usableDates = allDates.filter(d => !holidays.includes(d));
 
-        allDates.forEach((dt,i) => {
-          // build a hypothetical shift at 08:00
-          const cand = {
-            id:         's_opt_'+(i+1),
-            name:       'Shift',
-            date:       dt,
-            startTime:  7,
-            duration:   H
-          };
-          // test: apply to temp array
-          const temp = candidateShifts.concat(cand);
-          // temporarily swap in
-          shifts = temp;
-          rebuildDateIndexMap();
-          applyViolations();
-          // if cand is *not* flagged for any rule, keep it
-          if (!(cand.isRule1||cand.isRule2||cand.isRule3||cand.isRule4||
-                cand.isRule5||cand.isRule6||cand.isRule7||cand.isRule8)) {
-            candidateShifts.push(cand);
-          }
-          // else drop it silently
-        });
+      // 2) show every date in the chart
+      DATES = allDates.slice();
+      rebuildDateIndexMap();
 
-        // commit the new schedule
-        shifts = candidateShifts;
+      // 3) build only those shifts on usableDates
+      let candidateShifts = [];
+      usableDates.forEach((dt,i) => {
+        const cand = {
+          id:        's_opt_'+(i+1),
+          name:      'Shift',
+          date:      dt,
+          startTime: 7,
+          duration:  H
+        };
+        // test compliance
+        const temp = candidateShifts.concat(cand);
+        shifts = temp;
         rebuildDateIndexMap();
         applyViolations();
-        renderTimelineHeader();
-        renderChartArea();
-        populateDateOptions();
-      }
+        if (!(cand.isRule1||cand.isRule2||cand.isRule3||cand.isRule4||
+              cand.isRule5||cand.isRule6||cand.isRule7||cand.isRule8)) {
+          candidateShifts.push(cand);
+        }
+      });
+
+      // 4) commit and re-render
+      shifts = candidateShifts;
+      rebuildDateIndexMap();
+      applyViolations();
+      renderTimelineHeader();
+      renderChartArea();
+      populateDateOptions();
+    }
 
 
     function init(){
-      // cache DOM refs
       headerDateColumnEl       =document.getElementById('headerDateColumn');
       timelineHoursContainerEl =document.getElementById('timelineHoursContainer');
       chartAreaEl              =document.getElementById('chartArea');
@@ -692,11 +746,11 @@
             optStartEl        =document.getElementById('optStartDate'),
             optEndEl          =document.getElementById('optEndDate');
 
-      // default date inputs
-      optStartEl.min = DATES[0];
-      optEndEl.min   = DATES[0];
-      optStartEl.value = DATES[0];
-      optEndEl.value   = DATES[DATES.length-1];
+      // default optimizer dates
+      optStartEl.min  = DATES[0];
+      optEndEl.min    = DATES[0];
+      optStartEl.value= DATES[0];
+      optEndEl.value  = DATES[DATES.length-1];
 
       // clamp shift hours
       optHoursEl.addEventListener('input', ()=>{
@@ -704,10 +758,22 @@
         if(v>14) optHoursEl.value=14;
         if(v<1)  optHoursEl.value=1;
       });
-      // enforce endDate ≥ startDate
+      // enforce end≥start
       optStartEl.addEventListener('change', ()=>{
         optEndEl.min = optStartEl.value;
         if(optEndEl.value < optStartEl.value) optEndEl.value = optStartEl.value;
+      });
+
+      // holiday UI
+      document.getElementById('addHolidayBtn').addEventListener('click', ()=>{
+        const inp=document.getElementById('holidayInput');
+        const d=inp.value;
+        if(d && !holidays.includes(d)){
+          holidays.push(d);
+          holidays.sort();
+          renderHolidayList();
+        }
+        inp.value='';
       });
 
       populateDateOptions();
@@ -715,7 +781,10 @@
 
       addDateBtn.addEventListener('click',()=>{
         const d=prompt('Enter new date (YYYY-MM-DD):');
-        if(d&&!DATES.includes(d)){ DATES.push(d); DATES.sort(); rebuildDateIndexMap(); renderTimelineHeader(); renderChartArea(); populateDateOptions(); }
+        if(d&&!DATES.includes(d)){
+          DATES.push(d); DATES.sort(); rebuildDateIndexMap();
+          renderTimelineHeader(); renderChartArea(); populateDateOptions();
+        }
       });
       addShiftBtn.addEventListener('click',()=>openShiftModal({name:'',duration:1,startTime:0,date:DATES[0]},true));
 
@@ -746,17 +815,13 @@
         } else {
           shifts.push({id:getNextShiftId(),name,duration:dur,startTime:st,date:dt});
         }
-        applyViolations();
-        renderShifts();
-        closeShiftModal();
+        applyViolations(); renderShifts(); closeShiftModal();
       });
       cancelModalBtn.addEventListener('click', closeShiftModal);
       deleteShiftBtn.addEventListener('click', ()=>{
         if(modalActiveShiftId&&confirm('Delete this shift?')){
           shifts=shifts.filter(x=>x.id!==modalActiveShiftId);
-          applyViolations();
-          renderShifts();
-          closeShiftModal();
+          applyViolations(); renderShifts(); closeShiftModal();
         }
       });
 
